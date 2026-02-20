@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rock Paper Scissors – Ultimate Multiplayer</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  body { font-family: Arial, sans-serif; background: linear-gradient(135deg,#ffd6e8,#e0f2fe); text-align:center; padding:20px; }
+  .card { background:white; border-radius:20px; padding:20px; max-width:400px; margin:20px auto; box-shadow:0 10px 20px rgba(0,0,0,0.15); }
+  h1,h2 { color:#ff69b4; }
+  input,button { padding:10px; margin:5px; border-radius:12px; border:none; font-size:16px; }
+  button { background:#ffb3d9; cursor:pointer; }
+  #chat { height:120px; overflow-y:auto; background:#fdf2f8; padding:10px; border-radius:10px; text-align:left; margin-bottom:10px; }
+  #emojiReaction { font-size:40px; margin:10px; height:50px; }
+  #avatar { width:80px; height:80px; border-radius:50%; margin-top:10px; }
+  #leaderboard { text-align:left; margin-top:20px; }
+  #leaderboard h3 { text-align:center; }
+  #emojiPicker button { font-size:20px; margin:2px; }
+</style>
+</head>
+<body>
+
+<div class="card" id="joinBox">
+  <h1>✊🏻🖐🏻✌🏻 ROCK PAPER SCISSORS</h1>
+  <input id="name" placeholder="Your name"><br>
+  <input id="room" placeholder="Room code (same for both players)"><br>
+  <button onclick="startAuth()">Join Room</button>
+  <button onclick="playBot()">Play Bot 🤖</button>
+  <button onclick="rankedMatch()">🏆 Ranked Match</button>
+  <button onclick="watchRoomPrompt()">👀 Spectator</button>
+  <p id="rank">Rank: Bronze</p>
+</div>
+
+<div class="card" id="gameBox" style="display:none;">
+  <h2 id="status">Waiting...</h2>
+  <p>Wins: <span id="wins">0</span> | Losses: <span id="losses">0</span> | Draws: <span id="draws">0</span></p>
+
+  <div id="emojiReaction"></div>
+
+  <h3>🧑‍🎨 Avatar</h3>
+  <input id="avatarUrl" placeholder="Paste avatar image URL">
+  <button onclick="saveAvatarUrl()">Save Avatar</button><br>
+  <img id="avatar" src="https://i.imgur.com/8Km9tLL.png">
+
+  <div>
+    <button onclick="play('rock')">✊🏻</button>
+    <button onclick="play('paper')">🖐🏻</button>
+    <button onclick="play('scissors')">✌🏻</button>
+    <button onclick="rematch()">🎮 Rematch</button>
+  </div>
+
+  <h3>Chat 💬</h3>
+  <div id="chat"></div>
+  <input id="msg" placeholder="Type message...">
+  <button onclick="sendMsg()">Send</button>
+
+  <div id="emojiPicker">
+    <button onclick="sendEmoji('😀')">😀</button>
+    <button onclick="sendEmoji('😂')">😂</button>
+    <button onclick="sendEmoji('🔥')">🔥</button>
+    <button onclick="sendEmoji('💥')">💥</button>
+  </div>
+
+  <div id="leaderboard" class="card">
+    <h3>🏆 Global Leaderboard</h3>
+    <div id="leaderboardList"></div>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+<!-- Confetti -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAfjWHdqOA2gvJbo89KUu80CMjFVZFnAa8",
+  authDomain: "nera-xien.firebaseapp.com",
+  projectId: "nera-xien",
+  messagingSenderId: "403251362936",
+  appId: "1:403251362936:web:dfba26db97da4bb21fc18d"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let roomCode, playerId, playerName;
+let wins=0, losses=0, draws=0, botMode=false;
+
+function startAuth(){
+  const email=prompt("Enter email:");
+  const password=prompt("Enter password:");
+  firebase.auth().signInWithEmailAndPassword(email,password)
+  .then(()=>joinRoom())
+  .catch(err=>{
+    if(err.code==="auth/user-not-found"){
+      firebase.auth().createUserWithEmailAndPassword(email,password).then(()=>joinRoom());
+    } else alert(err.message);
+  });
+}
+
+function joinRoom(){
+  playerName=document.getElementById("name").value||"Player";
+  roomCode=document.getElementById("room").value||("room-"+Date.now());
+  playerId=firebase.auth().currentUser.uid;
+
+  db.ref("rooms/"+roomCode+"/players/"+playerId).set({name:playerName,move:""});
+  document.getElementById("joinBox").style.display="none";
+  document.getElementById("gameBox").style.display="block";
+  loadAvatar();
+  listenMoves();
+  listenChat();
+  updateLeaderboard();
+}
+
+function saveAvatarUrl(){
+  const url=document.getElementById("avatarUrl").value.trim();
+  if(!url) return alert("Paste an image URL!");
+  db.ref("users/"+playerId+"/avatar").set(url);
+  document.getElementById("avatar").src=url;
+}
+
+function loadAvatar(){
+  db.ref("users/"+playerId+"/avatar").once("value").then(snap=>{
+    if(snap.exists()) document.getElementById("avatar").src=snap.val();
+  });
+}
+
+function listenMoves(){
+  db.ref("rooms/"+roomCode).on("value",snap=>{
+    const d=snap.val(); if(!d||!d.players) return;
+    const ids=Object.keys(d.players);
+    if(ids.length===2){
+      const a=d.players[ids[0]].move;
+      const b=d.players[ids[1]].move;
+      if(a&&b) handleResult(a,b);
+    }
+  });
+}
+
+function handleResult(a,b){
+  if(a===b) document.getElementById("status").innerText="Draw!";
+  else if((a==="rock"&&b==="scissors")||(a==="paper"&&b==="rock")||(a==="scissors"&&b==="paper")){
+    wins++; document.getElementById("status").innerText="You win!";
+  } else { losses++; document.getElementById("status").innerText="You lose!"; }
+  document.getElementById("wins").innerText=wins;
+  document.getElementById("losses").innerText=losses;
+  document.getElementById("draws").innerText=draws;
+  db.ref("rooms/"+roomCode+"/players").once("value").then(s=>{
+    s.forEach(p=>db.ref("rooms/"+roomCode+"/players/"+p.key+"/move").set(""));
+  });
+}
+
+function play(c){
+  if(botMode){
+    const b=["rock","paper","scissors"][Math.floor(Math.random()*3)];
+    handleResult(c,b);
+  } else {
+    db.ref("rooms/"+roomCode+"/players/"+playerId+"/move").set(c);
+  }
+}
+
+function playBot(){ botMode=true; document.getElementById("joinBox").style.display="none"; document.getElementById("gameBox").style.display="block"; }
+function sendMsg(){ const m=document.getElementById("msg").value; if(m) db.ref("rooms/"+roomCode+"/chat").push(playerName+": "+m); document.getElementById("msg").value=""; }
+function sendEmoji(e){ db.ref("rooms/"+roomCode+"/chat").push(playerName+": "+e); }
+function listenChat(){ db.ref("rooms/"+roomCode+"/chat").on("child_added",s=>chat.innerHTML+="<div>"+s.val()+"</div>"); }
+function rankedMatch(){ alert("Ranked queue demo – you can expand later"); }
+function watchRoomPrompt(){ alert("Spectator mode demo – working!"); }
+function updateLeaderboard(){}
+
+</script>
+</body>
+    </html>
