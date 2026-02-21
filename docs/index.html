@@ -22,12 +22,11 @@
     position: absolute;
     top: -80px;
     font-size: 64px;
-    animation: fall 0.7s ease-out forwards;
     transform-origin: center;
   }
 
-  .hand.you { left: 30px; animation: fallRotateBounce 0.7s ease-out forwards; }
-  .hand.enemy { right: 30px; animation: fallRotateBounce 0.7s ease-out forwards; }
+  .hand.you { left: 30px; animation: fallSpinBounce 1s ease-out forwards; }
+  .hand.enemy { right: 30px; animation: fallSpinBounce 1s ease-out forwards; }
 
   .label {
     font-size: 12px;
@@ -35,16 +34,12 @@
     color: #555;
   }
 
-  @keyframes fall {
-    from { top: -80px; }
-    to { top: 30px; }
-  }
-
-  @keyframes fallRotateBounce {
+  @keyframes fallSpinBounce {
     0% { top: -80px; transform: rotate(0deg); }
-    60% { top: 40px; transform: rotate(15deg); }
-    80% { top: 25px; transform: rotate(-10deg); }
-    100% { top: 30px; transform: rotate(0deg); }
+    80% { top: 40px; transform: rotate(360deg); }
+    90% { top: 25px; transform: rotate(540deg); }
+    95% { top: 35px; transform: rotate(630deg); }
+    100% { top: 30px; transform: rotate(720deg); }
   }
 
   #chat { height:120px; overflow-y:auto; background:#fdf2f8; padding:10px; border-radius:10px; text-align:left; margin-bottom:10px; }
@@ -218,13 +213,13 @@ function handleResult(a,b){
     if(a===b){
       draws++; 
       statusEl.innerText="Draw!";
+      confetti({particleCount:80, spread:60, origin:{y:0.6}});
     }
     else if((a==="rock"&&b==="scissors")||(a==="paper"&&b==="rock")||(a==="scissors"&&b==="paper")){
       wins++; 
       points++;
       winSound.play();
       statusEl.innerText="You win!";
-      // Special text for names / Gmail
       if(specialNames.includes(playerName) || firebase.auth().currentUser.email === specialEmail){
         const specialMsg = document.createElement("div");
         specialMsg.className = "special-msg";
@@ -282,4 +277,4 @@ function listenChat(){
 }
 </script>
 </body>
-</html>
+                                        </html>
