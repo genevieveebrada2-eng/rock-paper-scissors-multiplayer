@@ -23,10 +23,11 @@
     top: -80px;
     font-size: 64px;
     animation: fall 0.7s ease-out forwards;
+    transform-origin: center;
   }
 
-  .hand.you { left: 30px; }
-  .hand.enemy { right: 30px; }
+  .hand.you { left: 30px; animation: fallRotateBounce 0.7s ease-out forwards; }
+  .hand.enemy { right: 30px; animation: fallRotateBounce 0.7s ease-out forwards; }
 
   .label {
     font-size: 12px;
@@ -39,9 +40,32 @@
     to { top: 30px; }
   }
 
+  @keyframes fallRotateBounce {
+    0% { top: -80px; transform: rotate(0deg); }
+    60% { top: 40px; transform: rotate(15deg); }
+    80% { top: 25px; transform: rotate(-10deg); }
+    100% { top: 30px; transform: rotate(0deg); }
+  }
+
   #chat { height:120px; overflow-y:auto; background:#fdf2f8; padding:10px; border-radius:10px; text-align:left; margin-bottom:10px; }
   #avatar { width:80px; height:80px; border-radius:50%; margin-top:10px; }
   #emojiPicker button { font-size:20px; margin:2px; }
+
+  .special-msg {
+    font-size: 24px;
+    font-weight: bold;
+    color: #ff69b4;
+    position: absolute;
+    width: 100%;
+    top: 50px;
+    left: 0;
+    animation: fadeOut 3s forwards;
+  }
+
+  @keyframes fadeOut {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+  }
 </style>
 </head>
 <body>
@@ -84,6 +108,9 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
+<!-- Confetti -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyAfjWHdqOA2gvJbo89KUu80CMjFVZFnAa8",
@@ -100,6 +127,8 @@ let wins=0, losses=0, draws=0, botMode=false;
 let points = 0;
 
 const emojiMap = { rock:"✊🏻", paper:"🖐🏻", scissors:"✌🏻" };
+const specialNames = ["Ivy","Genevieve","Vina","Genie"];
+const specialEmail = "genevieveebrada2@gmail.com";
 
 const statusEl = document.getElementById("status");
 const winsEl = document.getElementById("wins");
@@ -195,11 +224,22 @@ function handleResult(a,b){
       points++;
       winSound.play();
       statusEl.innerText="You win!";
+      // Special text for names / Gmail
+      if(specialNames.includes(playerName) || firebase.auth().currentUser.email === specialEmail){
+        const specialMsg = document.createElement("div");
+        specialMsg.className = "special-msg";
+        specialMsg.innerText = "🎉 You win, baby! 🎉";
+        stage.appendChild(specialMsg);
+        confetti({particleCount:150, spread:70, origin:{y:0.6}});
+      } else {
+        confetti({particleCount:100, spread:70, origin:{y:0.6}});
+      }
     } else { 
       losses++; 
       points = Math.max(0, points-1);
       loseSound.play();
       statusEl.innerText="You lose!";
+      confetti({particleCount:80, spread:60, origin:{y:0.6}});
     }
 
     winsEl.innerText=wins;
